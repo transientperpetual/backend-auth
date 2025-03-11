@@ -18,6 +18,8 @@ from django.shortcuts import render, redirect
 from django.urls import reverse_lazy
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
+from dj_rest_auth.registration.views import SocialLoginView
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 
 User = get_user_model()
 
@@ -108,6 +110,10 @@ class ResendOTPView(APIView):
         )
 
         return JsonResponse({"message": "A new OTP has been sent to your email."})
+    
+
+class GoogleLoginView(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
     
 
 class CustomTokenObtainPairView(TokenObtainPairView):
