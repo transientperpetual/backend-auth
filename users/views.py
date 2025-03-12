@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from django.utils.timezone import now
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView,TokenRefreshView
 from .serializers import CustomTokenObtainPairSerializer
 from django.core.mail import send_mail
 from rest_framework.response import Response
@@ -206,8 +206,50 @@ def google_callback(request):
     
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairSerializer
-    permission_classes = [AllowAny]
+     def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        access_token = response.data.get("access")
+        refresh_token = response.data.get("refresh")
+
+        # Store tokens in HTTP-only cookies
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=False,  # Set to True in production
+            samesite="Lax",
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=False,
+            samesite="Lax",
+        )
+        return response
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.COOKIES.get("refresh_token")
+
+        if not refresh_token:
+            return Response({"error": "No refresh token"}, status=400)
+
+        request.data["refresh"] = refresh_token  # Pass refresh token to SimpleJWT
+        response = super().post(request, *args, **kwargs)
+
+        # Store new access token in HTTP-only cookie
+        response.set_cookie(
+            key="access_token",
+            value=response.data.get("access"),
+            httponly=True,
+            secure=False,
+            samesite="Lax",
+        )
+        return response
+    
+    
 
 class ArraivUserList(ListAPIView):
     queryset = ArraivUser.objects.all()
@@ -220,5 +262,29 @@ class ArraivUserRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
     serializer_class = ArraivUserSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAdminUser]
+
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            refresh_token = request.COOKIES.get("refresh_token")
+            if not refresh_token:
+                return Response({"error": "No refresh token"}, status=400)
+
+            # Blacklist the token
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            # Clear cookies
+            response = Response({"message": "Logged out successfully"}, status=200)
+            response.delete_cookie("access_token")
+            response.delete_cookie("refresh_token")
+
+            return response
+        except Exception as e:
+            return Response({"error": "Invalid token or already blacklisted"}, status=400)
 
 
