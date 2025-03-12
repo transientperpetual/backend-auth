@@ -16,4 +16,7 @@ urlpatterns = [
     path('refreshtoken/', TokenRefreshView.as_view(), name='token_refresh'),
     path('verifytoken/', TokenVerifyView.as_view(), name='token_verify'),
     path('deleteuser/', views.delete_user_view, name='delete_user'),
+    
+    path('google/login/', views.google_login, name='google_login'),
+    path('google/callback/', views.google_callback, name='google_callback'),
 ]

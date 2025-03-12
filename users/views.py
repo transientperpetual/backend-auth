@@ -18,8 +18,26 @@ from django.shortcuts import render, redirect
 from django.urls import reverse_lazy
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
+from urllib.parse import urlencode
+import requests
+from rest_framework import status
+from django.contrib.auth import login
+import environ
+from rest_framework_simplejwt.tokens import RefreshToken
+
+# Initialize environ
+env = environ.Env(
+    DEBUG=(bool, False)
+)
 
 User = get_user_model()
+
+def get_tokens_for_user(user):
+    refresh = RefreshToken.for_user(user)
+    return {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
 
 @csrf_exempt
 def delete_user_view(request):
@@ -45,14 +63,16 @@ class RegisterUserView(CreateAPIView):
 
         # Send OTP via email
         send_mail(
-            subject="Welcome to ARRAlV!",
+            subject="Welcome to ARRAIV!",
             message=f"Here's your OTP {user.otp}. It expires in 10 minutes.",
             from_email=settings.EMAIL_HOST_USER,
             recipient_list=[user.email],
             fail_silently=False,
         )
 
-        return Response({"message": "User registered. Check your email for the OTP."})
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)  # Call default create method
+        return Response({"message": "User registered. Check your email for the OTP."}, status=status.HTTP_201_CREATED)
     
 
 class VerifyOTPView(APIView):
@@ -108,6 +128,81 @@ class ResendOTPView(APIView):
         )
 
         return JsonResponse({"message": "A new OTP has been sent to your email."})
+    
+    
+
+def google_login(request):
+    base_url = "https://accounts.google.com/o/oauth2/v2/auth"
+    params = {
+        "client_id": env("GOOGLE_CLIENT_ID"),
+        "response_type": "code",
+        "scope": "openid email profile",
+        "redirect_uri": request.build_absolute_uri('/google/callback/'),
+        "state": "random_state_string",  # Protect against CSRF
+        "access_type": "offline",
+        # "prompt": "consent",
+    }
+    return redirect(f"{base_url}?{urlencode(params)}")
+
+
+
+def google_callback(request):
+    code = request.GET.get('code')
+    
+    if not code:
+        return render(request, 'error.html', {"message": "No code provided."})
+
+    # Exchange authorization code for access token
+    token_response = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "code": code,
+            "client_id": env("GOOGLE_CLIENT_ID"),
+            "client_secret": env("GOOGLE_CLIENT_SECRET"),
+            "redirect_uri": request.build_absolute_uri('/google/callback/'),
+            "grant_type": "authorization_code",
+        },
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    ).json()
+
+    if "error" in token_response:
+        return render(request, 'error.html', {"message": token_response.get("error_description")})
+
+    access_token = token_response.get('access_token')
+
+    # Get user info from Google
+    user_info_response = requests.get(
+        "https://www.googleapis.com/oauth2/v1/userinfo",
+        params={"access_token": access_token, "alt": "json"},
+    ).json()
+
+    email = user_info_response.get('email')
+    first_name = user_info_response.get('given_name')
+
+    #Add a template here.
+    if not email:
+        return render(request, 'error.html', {"message": "Email not provided by Google."})
+
+    # Create or update user
+    user, created = ArraivUser.objects.update_or_create(
+        email=email,
+        defaults={"first_name": first_name, "email": email, "is_email_verified": True},
+    )
+
+    # Generate JWT tokens
+    tokens = get_tokens_for_user(user)
+
+    return JsonResponse({
+        "message": "Google login successful",
+        "access_token": tokens['access'],
+        "refresh_token": tokens['refresh'],
+        "user": {
+            "email": user.email,
+            "first_name": user.first_name,
+        },
+    })
+
+
     
 
 class CustomTokenObtainPairView(TokenObtainPairView):
