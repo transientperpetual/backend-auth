@@ -39,17 +39,6 @@ def get_tokens_for_user(user):
         'access': str(refresh.access_token),
     }
 
-@csrf_exempt
-def delete_user_view(request):
-    if request.method == 'POST':
-        # User confirmed deletion
-        user = request.user
-        user.delete()
-        logout(request)
-        messages.success(request, "Your account has been deleted successfully.")
-        return redirect(reverse_lazy('home'))  # Redirect to the homepage or any other page
-    return render(request, 'users/delete_account_confirm.html')
-
 
 class RegisterUserView(CreateAPIView):
     queryset = ArraivUser.objects.all()

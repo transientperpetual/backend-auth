@@ -15,7 +15,6 @@ urlpatterns = [
     path('user/<int:pk>', views.ArraivUserRetrieveUpdateDestroy.as_view()),
     path('refreshtoken/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('verifytoken/', TokenVerifyView.as_view(), name='token_verify'),
-    path('deleteuser/', views.delete_user_view, name='delete_user'),
     
     path('google/login/', views.google_login, name='google_login'),
     # this is not browsable, do something to take it away from the user.
