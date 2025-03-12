@@ -161,6 +161,7 @@ def google_callback(request):
             "client_secret": env("GOOGLE_CLIENT_SECRET"),
             "redirect_uri": request.build_absolute_uri('/google/callback/'),
             "grant_type": "authorization_code",
+            "state": "random_state_string",
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     ).json()
@@ -201,7 +202,6 @@ def google_callback(request):
             "first_name": user.first_name,
         },
     })
-
 
     
 
