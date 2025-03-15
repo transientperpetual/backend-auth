@@ -24,6 +24,7 @@ from rest_framework import status
 from django.contrib.auth import login
 import environ
 from rest_framework_simplejwt.tokens import RefreshToken
+from .authentication import CookieJWTAuthentication
 
 # Initialize environ
 env = environ.Env(
@@ -46,8 +47,9 @@ class RegisterUserView(CreateAPIView):
     permission_classes = [AllowAny]
 
     def perform_create(self, serializer):
-        user = serializer.save()
-        user.is_email_verified = False  
+        user = serializer.save(commit=False)
+        user.is_email_verified = False
+        user.save()
         user.generate_otp()  # Generate OTP
 
         # Send OTP via email
@@ -195,25 +197,33 @@ def google_callback(request):
     
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-     def post(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         access_token = response.data.get("access")
         refresh_token = response.data.get("refresh")
-
-        # Store tokens in HTTP-only cookies
+        
+        # Remove tokens from response body for security
+        response.data = {}
+        
+        # Get settings from django settings
+        from django.conf import settings
+        
+        # Store tokens in HTTP-only cookies using same settings as in settings.py
         response.set_cookie(
-            key="access_token",
+            key=settings.SIMPLE_JWT['AUTH_COOKIE'],  # Use the same key from settings
             value=access_token,
-            httponly=True,
-            secure=False,  # Set to True in production
-            samesite="Lax",
+            httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+            secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            path=settings.SIMPLE_JWT['AUTH_COOKIE_PATH'],
         )
         response.set_cookie(
-            key="refresh_token",
+            key=settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'],
             value=refresh_token,
-            httponly=True,
-            secure=False,
-            samesite="Lax",
+            httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+            secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            path=settings.SIMPLE_JWT['AUTH_COOKIE_PATH'],
         )
         return response
 
@@ -243,7 +253,7 @@ class CustomTokenRefreshView(TokenRefreshView):
 class ArraivUserList(ListAPIView):
     queryset = ArraivUser.objects.all()
     serializer_class = ArraivUserSerializer
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [CookieJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
 class ArraivUserRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
