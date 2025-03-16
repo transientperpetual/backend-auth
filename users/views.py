@@ -47,7 +47,7 @@ class RegisterUserView(CreateAPIView):
     permission_classes = [AllowAny]
 
     def perform_create(self, serializer):
-        user = serializer.save(commit=False)
+        user = serializer.save()
         user.is_email_verified = False
         user.save()
         user.generate_otp()  # Generate OTP
@@ -203,7 +203,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         refresh_token = response.data.get("refresh")
         
         # Remove tokens from response body for security
-        response.data = {}
+        # response.data = {}
         
         # Get settings from django settings
         from django.conf import settings
