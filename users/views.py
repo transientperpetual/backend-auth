@@ -40,33 +40,34 @@ def get_tokens_for_user(user):
         'access': str(refresh.access_token),
     }
 
-
 class RegisterUserView(CreateAPIView):
     queryset = ArraivUser.objects.all()
     serializer_class = ArraivUserSerializer
     permission_classes = [AllowAny]
 
     def perform_create(self, serializer):
-        user = serializer.save(commit=False)
+        user = serializer.save()
         user.is_email_verified = False
-        user.save()
-        user.generate_otp()  # Generate OTP
+        user.generate_otp()  
 
-        # Send OTP via email
-        send_mail(
-            subject="Welcome to ARRAIV!",
-            message=f"Here's your OTP {user.otp}. It expires in 10 minutes.",
-            from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[user.email],
-            fail_silently=False,
-        )
+        try:
+            send_mail(
+                subject="Welcome to ARRAIV!",
+                message=f"Here's your OTP {user.otp}. It expires in 10 minutes.",
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"Email sending failed: {e}")
 
     def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)  # Call default create method
+        super().create(request, *args, **kwargs)
         return Response({"message": "User registered. Check your email for the OTP."}, status=status.HTTP_201_CREATED)
     
 
 class VerifyOTPView(APIView):
+    print("CLASS INVOKED")
     def post(self, request):
         email = request.data.get("email")
         otp = request.data.get("otp")
