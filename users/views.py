@@ -67,6 +67,7 @@ class RegisterUserView(CreateAPIView):
     
 
 class VerifyOTPView(APIView):
+    permission_classes = [AllowAny]
     print("CLASS INVOKED")
     def post(self, request):
         email = request.data.get("email")
